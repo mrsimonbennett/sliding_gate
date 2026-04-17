@@ -420,6 +420,7 @@ async function shareUrl() {
       speed: +document.getElementById('gateSpeed').value,
       hideBehindWall: document.getElementById('hideBehindWall').checked,
       flip: document.getElementById('flipGate').checked,
+      auto: true,
     },
   };
   const url = location.origin + location.pathname + '#' + encodeURIComponent(JSON.stringify(payload));
@@ -453,6 +454,7 @@ function loadFromHash() {
     document.getElementById('gateSpeedV').textContent = getSpeedMs().toFixed(2);
     updateHide();
     updateButtonLabel();
+    if (s.auto) setTimeout(() => { if (!autoCycle) toggleAuto(); }, 500);
   }
   if (payload.img) {
     const img = document.getElementById('bgImg');
