@@ -1,0 +1,470 @@
+
+<style>
+#btn, #autoBtn, #uploadBtn, #editBtn, #shareBtn { font-size:13px; padding:7px 20px; cursor:pointer; border-radius:6px; border:0.5px solid #ccc; background:#fff; color:#333; transition:background 0.15s; }
+#btn:hover, #autoBtn:hover, #uploadBtn:hover, #editBtn:hover, #shareBtn:hover { background:#f0f0f0; }
+#autoBtn.active, #editBtn.active { background:#333; color:#fff; }
+#controls { text-align:center; padding:0.25rem 0 0.5rem; font-size:12px; font-family:sans-serif; color:#999; }
+#controls label { margin:0 6px; white-space:nowrap; }
+#controls input[type=range] { width:110px; vertical-align:middle; }
+#controls span { display:inline-block; width:44px; text-align:left; font-variant-numeric:tabular-nums; }
+.cornerHandle {
+  position:absolute; width:22px; height:22px;
+  background:rgba(30,144,255,0.55); border:2px solid #fff; border-radius:50%;
+  transform:translate(-50%, -50%);
+  cursor:grab; touch-action:none; z-index:20;
+  box-shadow:0 0 4px rgba(0,0,0,0.4);
+  display:none;
+}
+.cornerHandle.editing { display:block; }
+.cornerHandle:active { cursor:grabbing; background:rgba(30,144,255,0.85); }
+#openingOutline { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:15; display:none; }
+#openingOutline.editing { display:block; }
+#openingOutline polygon { fill:rgba(30,144,255,0.08); stroke:rgba(30,144,255,0.7); stroke-width:1; stroke-dasharray:4 4; }
+#openingOutline line { stroke:rgba(255,180,0,0.75); stroke-width:1; stroke-dasharray:6 4; }
+</style>
+
+<div style="text-align:center; padding:0.75rem 0 0.25rem;">
+  <button id="btn" onclick="toggleGate()">Open gate →</button>
+  <button id="autoBtn" onclick="toggleAuto()">Auto</button>
+  <button id="uploadBtn" onclick="document.getElementById('bgFile').click()">Upload photo</button>
+  <button id="editBtn" onclick="toggleEdit()">Edit corners</button>
+  <button id="shareBtn" onclick="shareUrl()">Share URL</button>
+  <input type="file" id="bgFile" accept="image/*" style="display:none" onchange="loadBgImage(event)">
+</div>
+<div id="controls">
+  <label>Speed <input type="range" id="gateSpeed" min="5" max="50" value="25" oninput="updateSpeedLabel()"> <span id="gateSpeedV">0.25</span> m/s</label>
+  <label>Direction
+    <select id="gateDir" onchange="updateDirection()">
+      <option value="left">Left</option>
+      <option value="right">Right</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="hideBehindWall" checked onchange="updateHide()"> Slides behind wall</label>
+  <label><input type="checkbox" id="flipGate" onchange="updateFlip()"> Flip gate</label>
+</div>
+
+<div id="scene" style="position:relative; overflow:hidden; line-height:0;">
+  <img id="bgImg" style="display:block; width:100%;" alt="Vicarage gate photo">
+  <svg id="openingOutline" preserveAspectRatio="none">
+    <line id="topAlignLine" />
+    <line id="bottomAlignLine" />
+    <polygon id="outlinePoly" />
+  </svg>
+  <svg id="gateSvg" viewBox="0 42 624 238" preserveAspectRatio="none"
+       style="position:absolute; top:0; left:0; width:624px; height:238px; transform-origin:0 0; pointer-events:none; overflow:hidden;">
+  <defs>
+    <pattern id="oak" x="0" y="0" width="14" height="210" patternUnits="userSpaceOnUse">
+      <rect width="13" height="210" fill="#C8864A"/>
+      <line x1="2.5" y1="0" x2="2" y2="210" stroke="#A8702E" stroke-width="0.6" opacity="0.45"/>
+      <line x1="5.8" y1="0" x2="6.5" y2="210" stroke="#D6995C" stroke-width="0.4" opacity="0.3"/>
+      <line x1="9.2" y1="0" x2="8.8" y2="210" stroke="#A8702E" stroke-width="0.5" opacity="0.4"/>
+      <rect x="13" y="0" width="1" height="210" fill="#4E2408"/>
+    </pattern>
+    <pattern id="oak2" x="9" y="0" width="14" height="210" patternUnits="userSpaceOnUse">
+      <rect width="13" height="210" fill="#BF7E3C"/>
+      <line x1="2" y1="0" x2="2.6" y2="210" stroke="#9A6224" stroke-width="0.6" opacity="0.45"/>
+      <line x1="6.2" y1="0" x2="5.7" y2="210" stroke="#CC8E4C" stroke-width="0.4" opacity="0.3"/>
+      <rect x="13" y="0" width="1" height="210" fill="#4E2408"/>
+    </pattern>
+  </defs>
+
+  <g id="gateGroup">
+    <rect x="0" y="52" width="328" height="228" rx="3" fill="#1E0C04" opacity="0.12"/>
+    <rect x="0" y="50" width="326" height="228" rx="3" fill="#6A3A16"/>
+    <rect x="0" y="50" width="326" height="20" fill="#7C4620"/>
+    <rect x="0" y="50" width="326" height="4" fill="#9A5C2A" opacity="0.4"/>
+    <rect x="0" y="42" width="328" height="10" rx="2" fill="#8C5226"/>
+    <rect x="0" y="42" width="328" height="3" rx="1" fill="#AC6432" opacity="0.5"/>
+    <rect x="0" y="258" width="326" height="20" fill="#623616"/>
+    <rect x="0" y="70" width="315" height="188" fill="url(#oak)"/>
+    <rect x="330" y="52" width="294" height="228" rx="3" fill="#1E0C04" opacity="0.1"/>
+    <rect x="328" y="50" width="294" height="228" rx="3" fill="#6A3A16"/>
+    <rect x="328" y="50" width="294" height="20" fill="#7C4620"/>
+    <rect x="328" y="50" width="294" height="4" fill="#9A5C2A" opacity="0.4"/>
+    <rect x="326" y="42" width="298" height="10" rx="2" fill="#8C5226"/>
+    <rect x="326" y="42" width="298" height="3" rx="1" fill="#AC6432" opacity="0.5"/>
+    <rect x="328" y="258" width="294" height="20" fill="#623616"/>
+    <rect x="338" y="70" width="194" height="188" fill="url(#oak2)"/>
+    <rect x="539" y="63" width="79" height="202" fill="#1E0C04" opacity="0.2"/>
+    <rect x="538" y="64" width="78" height="200" rx="2" fill="#7C4620"/>
+    <rect x="538" y="75" width="78" height="9" fill="#4E2408"/>
+    <rect x="538" y="246" width="78" height="9" fill="#4E2408"/>
+    <rect x="547" y="84" width="61" height="162" fill="url(#oak)"/>
+    <rect x="537" y="63" width="80" height="202" rx="2" fill="none" stroke="#3E1808" stroke-width="1.8"/>
+    <rect x="538" y="86" width="9" height="15" rx="1.5" fill="#2E1208"/>
+    <circle cx="542" cy="93" r="2.5" fill="#4E2808"/>
+    <rect x="538" y="210" width="9" height="15" rx="1.5" fill="#2E1208"/>
+    <circle cx="542" cy="217" r="2.5" fill="#4E2808"/>
+    <rect x="611" y="158" width="5" height="28" rx="2.5" fill="#2E1208"/>
+    <rect x="610" y="155" width="7" height="4" rx="2" fill="#3E1A08"/>
+    <rect x="610" y="186" width="7" height="4" rx="2" fill="#3E1A08"/>
+  </g>
+
+  </svg>
+  <div class="cornerHandle" data-corner="tl"></div>
+  <div class="cornerHandle" data-corner="tr"></div>
+  <div class="cornerHandle" data-corner="br"></div>
+  <div class="cornerHandle" data-corner="bl"></div>
+</div>
+
+<script>
+const TRAVEL_DIST = 622;
+const GATE_WIDTH_M = 4;
+const SVG_W = 624, SVG_H = 238;
+function getTravel() {
+  return document.getElementById('gateDir').value === 'right' ? TRAVEL_DIST : -TRAVEL_DIST;
+}
+let currentX = 0;
+let open = false;
+let animId = null;
+let animating = false;
+let autoCycle = false;
+let autoTimer = null;
+
+// Corners stored as percentages of scene width (so they scale across devices)
+const DEFAULT_CORNERS = {
+  tl: { x: 34.3, y: 30.3 },
+  tr: { x: 69.3, y: 30.3 },
+  br: { x: 69.3, y: 49.3 },
+  bl: { x: 34.3, y: 49.3 },
+};
+let corners = loadCorners();
+
+function loadCorners() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('gateCorners'));
+    if (saved && saved.tl && saved.tr && saved.br && saved.bl) return saved;
+  } catch (_) {}
+  return JSON.parse(JSON.stringify(DEFAULT_CORNERS));
+}
+function saveCorners() {
+  try { localStorage.setItem('gateCorners', JSON.stringify(corners)); } catch (_) {}
+}
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('gateSettings')) || {};
+    if (s.direction) document.getElementById('gateDir').value = s.direction;
+    if (typeof s.speed === 'number') document.getElementById('gateSpeed').value = s.speed;
+    if (typeof s.hideBehindWall === 'boolean') document.getElementById('hideBehindWall').checked = s.hideBehindWall;
+    if (typeof s.flip === 'boolean') document.getElementById('flipGate').checked = s.flip;
+  } catch (_) {}
+}
+function saveSettings() {
+  try {
+    localStorage.setItem('gateSettings', JSON.stringify({
+      direction: document.getElementById('gateDir').value,
+      speed: +document.getElementById('gateSpeed').value,
+      hideBehindWall: document.getElementById('hideBehindWall').checked,
+      flip: document.getElementById('flipGate').checked,
+    }));
+  } catch (_) {}
+}
+
+function easeGate(t) {
+  const breakpoint = 0.9;
+  const power = 3;
+  const speed = power / (1 - breakpoint + power * breakpoint);
+  if (t < breakpoint) return speed * t;
+  const s = (t - breakpoint) / (1 - breakpoint);
+  return speed * breakpoint + (1 - speed * breakpoint) * (1 - Math.pow(1 - s, power));
+}
+
+function gateTransform(x) {
+  const flip = document.getElementById('flipGate').checked;
+  return flip
+    ? `translateX(${x}px) translateX(${SVG_W}px) scaleX(-1)`
+    : `translateX(${x}px)`;
+}
+
+function runAnim(fromX, toX, duration) {
+  if (animId) cancelAnimationFrame(animId);
+  const start = performance.now();
+  const dist = toX - fromX;
+  animating = true;
+  function step(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const e = easeGate(t);
+    currentX = fromX + dist * e;
+    document.getElementById('gateGroup').style.transform = gateTransform(currentX);
+    if (t < 1) animId = requestAnimationFrame(step);
+    else { animating = false; if (autoCycle) autoNext(); }
+  }
+  animId = requestAnimationFrame(step);
+}
+
+function updateFlip() {
+  document.getElementById('gateGroup').style.transform = gateTransform(currentX);
+  saveSettings();
+}
+
+function getSpeedMs() { return +document.getElementById('gateSpeed').value / 100; }
+
+function updateSpeedLabel() {
+  document.getElementById('gateSpeedV').textContent = getSpeedMs().toFixed(2);
+  saveSettings();
+  if (animating) {
+    const target = open ? getTravel() : 0;
+    const fraction = Math.abs(target - currentX) / TRAVEL_DIST;
+    const fullDuration = (GATE_WIDTH_M / getSpeedMs()) * 1000;
+    runAnim(currentX, target, Math.max(fraction * fullDuration, 100));
+  }
+}
+
+function toggleGate() {
+  open = !open;
+  const target = open ? getTravel() : 0;
+  const fraction = Math.abs(target - currentX) / TRAVEL_DIST;
+  const fullDuration = (GATE_WIDTH_M / getSpeedMs()) * 1000;
+  const duration = fraction * fullDuration;
+  runAnim(currentX, target, Math.max(duration, 100));
+  updateButtonLabel();
+}
+
+function updateButtonLabel() {
+  const right = document.getElementById('gateDir').value === 'right';
+  const arrow = right ? '→' : '←';
+  const closeArrow = right ? '←' : '→';
+  document.getElementById('btn').textContent = open ? `${closeArrow} Close gate` : `Open gate ${arrow}`;
+}
+
+function updateDirection() {
+  if (open) {
+    currentX = getTravel();
+    document.getElementById('gateGroup').style.transform = gateTransform(currentX);
+  }
+  updateButtonLabel();
+  saveSettings();
+}
+
+function updateHide() {
+  const clip = document.getElementById('hideBehindWall').checked;
+  document.getElementById('gateSvg').style.overflow = clip ? 'hidden' : 'visible';
+  document.getElementById('scene').style.overflow = clip ? 'hidden' : 'visible';
+  saveSettings();
+}
+loadSettings();
+document.getElementById('gateSpeedV').textContent = getSpeedMs().toFixed(2);
+updateButtonLabel();
+updateHide();
+
+function autoNext() { autoTimer = setTimeout(toggleGate, 3000); }
+
+function toggleAuto() {
+  autoCycle = !autoCycle;
+  document.getElementById('autoBtn').classList.toggle('active', autoCycle);
+  document.getElementById('autoBtn').textContent = autoCycle ? 'Auto (on)' : 'Auto';
+  if (autoCycle) { if (!animating) toggleGate(); }
+  else { if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; } }
+}
+
+// --- Homography (rectangle to quadrilateral) ---
+// Returns CSS matrix3d values (column-major 4x4) mapping (0,0)-(w,0)-(w,h)-(0,h)
+// to the four destination points [x1,y1, x2,y2, x3,y3, x4,y4] (TL, TR, BR, BL).
+function adj(m) {
+  return [
+    m[4]*m[8]-m[5]*m[7], m[2]*m[7]-m[1]*m[8], m[1]*m[5]-m[2]*m[4],
+    m[5]*m[6]-m[3]*m[8], m[0]*m[8]-m[2]*m[6], m[2]*m[3]-m[0]*m[5],
+    m[3]*m[7]-m[4]*m[6], m[1]*m[6]-m[0]*m[7], m[0]*m[4]-m[1]*m[3],
+  ];
+}
+function multmm(a, b) {
+  const c = Array(9);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+    let s = 0; for (let k = 0; k < 3; k++) s += a[3*i+k]*b[3*k+j];
+    c[3*i+j] = s;
+  }
+  return c;
+}
+function multmv(m, v) {
+  return [m[0]*v[0]+m[1]*v[1]+m[2]*v[2], m[3]*v[0]+m[4]*v[1]+m[5]*v[2], m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];
+}
+function basisToPoints(x1,y1,x2,y2,x3,y3,x4,y4) {
+  const m = [x1,x2,x3, y1,y2,y3, 1,1,1];
+  const v = multmv(adj(m), [x4,y4,1]);
+  return multmm(m, [v[0],0,0, 0,v[1],0, 0,0,v[2]]);
+}
+function rectToQuad(w, h, dx1,dy1, dx2,dy2, dx3,dy3, dx4,dy4) {
+  const s = basisToPoints(0,0, w,0, w,h, 0,h);
+  const d = basisToPoints(dx1,dy1, dx2,dy2, dx3,dy3, dx4,dy4);
+  const t = multmm(d, adj(s));
+  for (let i = 0; i < 9; i++) t[i] = t[i] / t[8];
+  return [
+    t[0], t[3], 0, t[6],
+    t[1], t[4], 0, t[7],
+    0, 0, 1, 0,
+    t[2], t[5], 0, t[8],
+  ];
+}
+
+function cornerPx(key) {
+  const w = document.getElementById('scene').offsetWidth;
+  return { x: corners[key].x / 100 * w, y: corners[key].y / 100 * w };
+}
+
+function updateOverlay() {
+  const tl = cornerPx('tl'), tr = cornerPx('tr'), br = cornerPx('br'), bl = cornerPx('bl');
+  const m = rectToQuad(
+    SVG_W, SVG_H,
+    tl.x, tl.y,
+    tr.x, tr.y,
+    br.x, br.y,
+    bl.x, bl.y
+  );
+  document.getElementById('gateSvg').style.transform = 'matrix3d(' + m.join(',') + ')';
+
+  // position handles
+  for (const k of ['tl','tr','br','bl']) {
+    const h = document.querySelector(`.cornerHandle[data-corner="${k}"]`);
+    const p = cornerPx(k);
+    h.style.left = p.x + 'px';
+    h.style.top = p.y + 'px';
+  }
+  // outline polygon
+  document.getElementById('outlinePoly').setAttribute(
+    'points',
+    `${tl.x},${tl.y} ${tr.x},${tr.y} ${br.x},${br.y} ${bl.x},${bl.y}`
+  );
+  // full-width alignment lines through top and bottom edges
+  const sceneW = document.getElementById('scene').offsetWidth;
+  const yAt = (p1, p2, x) => {
+    const dx = p2.x - p1.x;
+    return Math.abs(dx) < 0.001 ? p1.y : p1.y + (x - p1.x) * (p2.y - p1.y) / dx;
+  };
+  const top = document.getElementById('topAlignLine');
+  top.setAttribute('x1', 0); top.setAttribute('y1', yAt(tl, tr, 0));
+  top.setAttribute('x2', sceneW); top.setAttribute('y2', yAt(tl, tr, sceneW));
+  const bot = document.getElementById('bottomAlignLine');
+  bot.setAttribute('x1', 0); bot.setAttribute('y1', yAt(bl, br, 0));
+  bot.setAttribute('x2', sceneW); bot.setAttribute('y2', yAt(bl, br, sceneW));
+}
+window.addEventListener('resize', updateOverlay);
+updateOverlay();
+
+// --- Corner editing ---
+function toggleEdit() {
+  const on = !document.getElementById('editBtn').classList.contains('active');
+  document.getElementById('editBtn').classList.toggle('active', on);
+  document.getElementById('editBtn').textContent = on ? 'Done editing' : 'Edit corners';
+  document.querySelectorAll('.cornerHandle').forEach(h => h.classList.toggle('editing', on));
+  document.getElementById('openingOutline').classList.toggle('editing', on);
+  document.getElementById('gateSvg').style.opacity = on ? 0.5 : '';
+}
+
+let dragHandle = null;
+document.querySelectorAll('.cornerHandle').forEach(h => {
+  h.addEventListener('pointerdown', e => {
+    dragHandle = h;
+    h.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  h.addEventListener('pointermove', e => {
+    if (dragHandle !== h) return;
+    const scene = document.getElementById('scene');
+    const rect = scene.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    const w = rect.width;
+    corners[h.dataset.corner] = { x: x / w * 100, y: y / w * 100 };
+    updateOverlay();
+  });
+  const end = () => { if (dragHandle) { saveCorners(); dragHandle = null; } };
+  h.addEventListener('pointerup', end);
+  h.addEventListener('pointercancel', end);
+});
+
+// --- Photo upload ---
+function loadBgImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = document.getElementById('bgImg');
+    img.onload = () => {
+      try { localStorage.setItem('gateBgImg', ev.target.result); } catch (_) {}
+      updateOverlay();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+const savedBg = (() => { try { return localStorage.getItem('gateBgImg'); } catch (_) { return null; } })();
+if (savedBg) {
+  const img = document.getElementById('bgImg');
+  img.onload = updateOverlay;
+  img.src = savedBg;
+}
+
+// --- Share URL: pack image + settings into the URL hash ---
+function compressedImageDataUrl() {
+  const img = document.getElementById('bgImg');
+  if (!img.naturalWidth) return null;
+  const maxW = 1200;
+  const w = Math.min(maxW, img.naturalWidth);
+  const h = Math.round(img.naturalHeight * w / img.naturalWidth);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', 0.7);
+}
+
+async function shareUrl() {
+  const imgData = compressedImageDataUrl();
+  if (!imgData) { alert('Upload a photo first.'); return; }
+  const payload = {
+    img: imgData,
+    corners,
+    settings: {
+      direction: document.getElementById('gateDir').value,
+      speed: +document.getElementById('gateSpeed').value,
+      hideBehindWall: document.getElementById('hideBehindWall').checked,
+      flip: document.getElementById('flipGate').checked,
+    },
+  };
+  const url = location.origin + location.pathname + '#' + encodeURIComponent(JSON.stringify(payload));
+  history.replaceState(null, '', url);
+  const btn = document.getElementById('shareBtn');
+  const orig = btn.textContent;
+  const sizeKB = (url.length / 1024).toFixed(0);
+  try {
+    await navigator.clipboard.writeText(url);
+    btn.textContent = `Copied (${sizeKB}KB)`;
+  } catch (_) {
+    btn.textContent = `URL set (${sizeKB}KB)`;
+  }
+  setTimeout(() => { btn.textContent = orig; }, 2200);
+}
+
+function loadFromHash() {
+  const hash = location.hash.slice(1);
+  if (!hash) return false;
+  let payload;
+  try { payload = JSON.parse(decodeURIComponent(hash)); }
+  catch (_) { return false; }
+  if (payload.corners) { corners = payload.corners; saveCorners(); }
+  if (payload.settings) {
+    const s = payload.settings;
+    if (s.direction) document.getElementById('gateDir').value = s.direction;
+    if (typeof s.speed === 'number') document.getElementById('gateSpeed').value = s.speed;
+    if (typeof s.hideBehindWall === 'boolean') document.getElementById('hideBehindWall').checked = s.hideBehindWall;
+    if (typeof s.flip === 'boolean') document.getElementById('flipGate').checked = s.flip;
+    saveSettings();
+    document.getElementById('gateSpeedV').textContent = getSpeedMs().toFixed(2);
+    updateHide();
+    updateButtonLabel();
+  }
+  if (payload.img) {
+    const img = document.getElementById('bgImg');
+    img.onload = () => {
+      try { localStorage.setItem('gateBgImg', payload.img); } catch (_) {}
+      updateOverlay();
+    };
+    img.src = payload.img;
+  } else {
+    updateOverlay();
+  }
+  return true;
+}
+loadFromHash();
+</script>
