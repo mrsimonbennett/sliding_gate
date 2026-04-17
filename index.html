@@ -404,19 +404,25 @@ const round1 = n => Math.round(n * 10) / 10; // 1 decimal place for corners
 function compressedImageB64u() {
   const img = document.getElementById('bgImg');
   if (!img.naturalWidth) return null;
-  const maxW = 800;
+  const maxW = 640;
   const w = Math.min(maxW, img.naturalWidth);
   const h = Math.round(img.naturalHeight * w / img.naturalWidth);
   const canvas = document.createElement('canvas');
   canvas.width = w; canvas.height = h;
   canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-  const data = canvas.toDataURL('image/jpeg', 0.55);
-  return toB64u(data.replace(/^data:image\/jpeg;base64,/, ''));
+  let data = canvas.toDataURL('image/webp', 0.55);
+  let mime = 'webp';
+  if (!data.startsWith('data:image/webp')) {
+    data = canvas.toDataURL('image/jpeg', 0.5);
+    mime = 'jpeg';
+  }
+  const b64 = data.replace(/^data:image\/(?:webp|jpeg);base64,/, '');
+  return { b64u: toB64u(b64), mime };
 }
 
 async function shareUrl() {
-  const imgB64 = compressedImageB64u();
-  if (!imgB64) { alert('Upload a photo first.'); return; }
+  const imgRes = compressedImageB64u();
+  if (!imgRes) { alert('Upload a photo first.'); return; }
   // compact keys + rounded corner coords
   const c = corners;
   const settings = {
@@ -427,9 +433,10 @@ async function shareUrl() {
     h: document.getElementById('hideBehindWall').checked ? 1 : 0,
     f: document.getElementById('flipGate').checked ? 1 : 0,
     a: 1,
+    m: imgRes.mime,
   };
   const settingsB64 = toB64u(btoa(JSON.stringify(settings)));
-  const url = location.origin + location.pathname + '#' + settingsB64 + '.' + imgB64;
+  const url = location.origin + location.pathname + '#' + settingsB64 + '.' + imgRes.b64u;
   history.replaceState(null, '', url);
   const btn = document.getElementById('shareBtn');
   const orig = btn.textContent;
@@ -451,7 +458,8 @@ function loadFromHash() {
   let settings, imgUrl;
   try {
     settings = JSON.parse(atob(fromB64u(hash.slice(0, dot))));
-    imgUrl = 'data:image/jpeg;base64,' + fromB64u(hash.slice(dot + 1));
+    const mime = settings.m === 'webp' ? 'webp' : 'jpeg';
+    imgUrl = `data:image/${mime};base64,` + fromB64u(hash.slice(dot + 1));
   } catch (_) { return false; }
   if (settings.c && settings.c.length === 8) {
     const a = settings.c;
