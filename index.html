@@ -401,15 +401,27 @@ const toB64u = s => s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 const fromB64u = s => { let b = s.replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '='; return b; };
 const round1 = n => Math.round(n * 10) / 10; // 1 decimal place for corners
 
-function originalImageB64u() {
-  const src = document.getElementById('bgImg').src;
-  const m = src && src.match(/^data:image\/([^;]+);base64,(.+)$/);
-  if (!m) return null;
-  return { b64u: toB64u(m[2]), mime: m[1] };
+function compressedImageB64u() {
+  const img = document.getElementById('bgImg');
+  if (!img.naturalWidth) return null;
+  const maxW = 1280;
+  const w = Math.min(maxW, img.naturalWidth);
+  const h = Math.round(img.naturalHeight * w / img.naturalWidth);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  let data = canvas.toDataURL('image/webp', 0.85);
+  let mime = 'webp';
+  if (!data.startsWith('data:image/webp')) {
+    data = canvas.toDataURL('image/jpeg', 0.85);
+    mime = 'jpeg';
+  }
+  const b64 = data.replace(/^data:image\/(?:webp|jpeg);base64,/, '');
+  return { b64u: toB64u(b64), mime };
 }
 
 async function shareUrl() {
-  const imgRes = originalImageB64u();
+  const imgRes = compressedImageB64u();
   if (!imgRes) { alert('Upload a photo first.'); return; }
   // compact keys + rounded corner coords
   const c = corners;
