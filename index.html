@@ -396,34 +396,40 @@ if (savedBg) {
   img.src = savedBg;
 }
 
-// --- Share URL: pack image + settings into the URL hash ---
-function compressedImageDataUrl() {
+// --- Share URL: <settings_b64url>.<jpeg_b64url> ---
+const toB64u = s => s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fromB64u = s => { let b = s.replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '='; return b; };
+const round1 = n => Math.round(n * 10) / 10; // 1 decimal place for corners
+
+function compressedImageB64u() {
   const img = document.getElementById('bgImg');
   if (!img.naturalWidth) return null;
-  const maxW = 1200;
+  const maxW = 800;
   const w = Math.min(maxW, img.naturalWidth);
   const h = Math.round(img.naturalHeight * w / img.naturalWidth);
   const canvas = document.createElement('canvas');
   canvas.width = w; canvas.height = h;
   canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-  return canvas.toDataURL('image/jpeg', 0.7);
+  const data = canvas.toDataURL('image/jpeg', 0.55);
+  return toB64u(data.replace(/^data:image\/jpeg;base64,/, ''));
 }
 
 async function shareUrl() {
-  const imgData = compressedImageDataUrl();
-  if (!imgData) { alert('Upload a photo first.'); return; }
-  const payload = {
-    img: imgData,
-    corners,
-    settings: {
-      direction: document.getElementById('gateDir').value,
-      speed: +document.getElementById('gateSpeed').value,
-      hideBehindWall: document.getElementById('hideBehindWall').checked,
-      flip: document.getElementById('flipGate').checked,
-      auto: true,
-    },
+  const imgB64 = compressedImageB64u();
+  if (!imgB64) { alert('Upload a photo first.'); return; }
+  // compact keys + rounded corner coords
+  const c = corners;
+  const settings = {
+    c: [round1(c.tl.x), round1(c.tl.y), round1(c.tr.x), round1(c.tr.y),
+        round1(c.br.x), round1(c.br.y), round1(c.bl.x), round1(c.bl.y)],
+    d: document.getElementById('gateDir').value === 'right' ? 1 : 0,
+    s: +document.getElementById('gateSpeed').value,
+    h: document.getElementById('hideBehindWall').checked ? 1 : 0,
+    f: document.getElementById('flipGate').checked ? 1 : 0,
+    a: 1,
   };
-  const url = location.origin + location.pathname + '#' + encodeURIComponent(JSON.stringify(payload));
+  const settingsB64 = toB64u(btoa(JSON.stringify(settings)));
+  const url = location.origin + location.pathname + '#' + settingsB64 + '.' + imgB64;
   history.replaceState(null, '', url);
   const btn = document.getElementById('shareBtn');
   const orig = btn.textContent;
@@ -440,32 +446,36 @@ async function shareUrl() {
 function loadFromHash() {
   const hash = location.hash.slice(1);
   if (!hash) return false;
-  let payload;
-  try { payload = JSON.parse(decodeURIComponent(hash)); }
-  catch (_) { return false; }
-  if (payload.corners) { corners = payload.corners; saveCorners(); }
-  if (payload.settings) {
-    const s = payload.settings;
-    if (s.direction) document.getElementById('gateDir').value = s.direction;
-    if (typeof s.speed === 'number') document.getElementById('gateSpeed').value = s.speed;
-    if (typeof s.hideBehindWall === 'boolean') document.getElementById('hideBehindWall').checked = s.hideBehindWall;
-    if (typeof s.flip === 'boolean') document.getElementById('flipGate').checked = s.flip;
-    saveSettings();
-    document.getElementById('gateSpeedV').textContent = getSpeedMs().toFixed(2);
-    updateHide();
-    updateButtonLabel();
-    if (s.auto) setTimeout(() => { if (!autoCycle) toggleAuto(); }, 500);
-  }
-  if (payload.img) {
-    const img = document.getElementById('bgImg');
-    img.onload = () => {
-      try { localStorage.setItem('gateBgImg', payload.img); } catch (_) {}
-      updateOverlay();
+  const dot = hash.indexOf('.');
+  if (dot === -1) return false;
+  let settings, imgUrl;
+  try {
+    settings = JSON.parse(atob(fromB64u(hash.slice(0, dot))));
+    imgUrl = 'data:image/jpeg;base64,' + fromB64u(hash.slice(dot + 1));
+  } catch (_) { return false; }
+  if (settings.c && settings.c.length === 8) {
+    const a = settings.c;
+    corners = {
+      tl: { x: a[0], y: a[1] }, tr: { x: a[2], y: a[3] },
+      br: { x: a[4], y: a[5] }, bl: { x: a[6], y: a[7] },
     };
-    img.src = payload.img;
-  } else {
-    updateOverlay();
+    saveCorners();
   }
+  document.getElementById('gateDir').value = settings.d ? 'right' : 'left';
+  if (typeof settings.s === 'number') document.getElementById('gateSpeed').value = settings.s;
+  document.getElementById('hideBehindWall').checked = !!settings.h;
+  document.getElementById('flipGate').checked = !!settings.f;
+  saveSettings();
+  document.getElementById('gateSpeedV').textContent = getSpeedMs().toFixed(2);
+  updateHide();
+  updateButtonLabel();
+  if (settings.a) setTimeout(() => { if (!autoCycle) toggleAuto(); }, 500);
+  const img = document.getElementById('bgImg');
+  img.onload = () => {
+    try { localStorage.setItem('gateBgImg', imgUrl); } catch (_) {}
+    updateOverlay();
+  };
+  img.src = imgUrl;
   return true;
 }
 loadFromHash();
